@@ -33,6 +33,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .brand > span:last-child > span { color: var(--green); }
 .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px 12px 12px 4px; background: var(--green); color: white; font: 800 18px/1 system-ui, sans-serif; }
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
+.install-app-button { color: var(--green-dark); border-color: #d7e7dc; background: #f2f8f4; }
+.install-app-button:hover { background: #e7f3eb; }
+.install-button-icon { font-size: 17px; line-height: 1; }
 .local-indicator { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .local-indicator span { width: 7px; height: 7px; border-radius: 50%; background: #48a978; box-shadow: 0 0 0 3px #e4f3ea; }
 
@@ -208,6 +211,16 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
 .form-error:empty { display: none; }
 .source-dialog { width: min(420px, calc(100% - 28px)); }
 .source-dialog .full-button { margin-top: 10px; }
+.install-dialog { width: min(420px, calc(100% - 28px)); text-align: center; }
+.install-dialog-content { position: relative; padding: 10px 2px 1px; }
+.install-dialog .dialog-close { top: -8px; right: -7px; }
+.install-mark { display: grid; place-items: center; width: 57px; height: 57px; margin: 0 auto 18px; border-radius: 19px 19px 19px 6px; background: var(--green); color: white; font: 800 28px/1 system-ui, sans-serif; box-shadow: 0 7px 18px rgba(23, 115, 79, .18); }
+.install-dialog h2 { margin-bottom: 9px; }
+.install-dialog .dialog-copy { margin: 0 auto 18px; max-width: 320px; }
+.install-instructions { padding: 14px; border: 1px solid #dceae0; border-radius: 13px; background: #f2f8f4; text-align: left; }
+.install-instructions strong { color: #315c41; font-size: 12px; }
+.install-instructions p { margin: 5px 0 0; color: #617268; font-size: 11px; line-height: 1.6; }
+.install-dismiss { margin-top: 9px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
 .toast { position: fixed; z-index: 10; right: 18px; bottom: 88px; max-width: min(420px, calc(100% - 36px)); padding: 12px 16px; border: 1px solid #d5e7da; border-radius: 12px; background: #f0f8f2; color: #265a3e; box-shadow: 0 9px 28px rgba(20, 40, 28, .12); font-size: 12px; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; }
 .toast.visible { opacity: 1; transform: translateY(0); }
@@ -220,6 +233,8 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
   .local-indicator { display: none; }
   .topbar-actions { gap: 7px; }
   .topbar-actions .button { min-height: 37px; padding-inline: 11px; font-size: 11px; }
+  .topbar-actions .install-app-button { width: 36px; min-width: 36px; padding: 0; }
+  .install-label { display: none; }
   .backup-restore { width: 35px; height: 35px; }
   .welcome-row { align-items: flex-start; flex-direction: column; gap: 17px; padding: 34px 0 22px; }
   .welcome-row h1 { font-size: 34px; }

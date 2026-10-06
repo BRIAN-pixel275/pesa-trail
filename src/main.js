@@ -3,6 +3,7 @@ import { CAT, SRC, db, getSources, importParsed, needsLabel, saveSources, saveTr
 import { parseMessages } from './Parser.js';
 
 const app = document.querySelector('#app');
+let installPrompt = null;
 const state = {
   view: 'home',
   filter: 'all',
@@ -15,7 +16,21 @@ const state = {
   importText: '',
   importSkipped: 0,
   transactionDraft: null,
+  isInstalled: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
 };
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+});
+
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  state.isInstalled = true;
+  document.querySelector('#install-dialog')?.close();
+  updateInstallButton();
+  showToast('Pesa Trail is installed and ready to use.');
+});
 
 const escapeHtml = (value = '') =>
   String(value).replace(/[&<>"']/g, (character) => ({
@@ -308,6 +323,33 @@ function updateTransactionList() {
   if (list) list.innerHTML = transactionListMarkup();
 }
 
+function updateInstallButton() {
+  const button = document.querySelector('[data-action="open-install"]');
+  if (button) button.hidden = state.isInstalled;
+}
+
+function openInstallDialog() {
+  const dialog = document.querySelector('#install-dialog');
+  if (!dialog) return;
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  dialog.innerHTML = `
+    <div class="install-dialog-content">
+      <button class="dialog-close" type="button" data-action="close-dialog" aria-label="Close">×</button>
+      <span class="install-mark" aria-hidden="true">P</span>
+      <p class="eyebrow">Your money, one tap away</p>
+      <h2>Install Pesa Trail</h2>
+      <p class="dialog-copy">Add Pesa Trail to your home screen for a quick, app-like way to track your money. Your records stay on this device.</p>
+      ${installPrompt
+        ? `<button class="button button-primary full-button" type="button" data-action="install-now"><span aria-hidden="true">↓</span> Install app</button>`
+        : `<div class="install-instructions"><strong>${isIos ? 'On iPhone or iPad' : 'Install from your browser'}</strong><p>${isIos
+          ? 'Tap the Share button in Safari, then choose “Add to Home Screen”.'
+          : 'Open your browser menu and choose “Install app” or “Add to Home Screen”. If that option is not shown, this browser may not support installing web apps.'}</p></div>`
+      }
+      <button class="button button-quiet full-button install-dismiss" type="button" data-action="close-dialog">Maybe later</button>
+    </div>`;
+  dialog.showModal();
+}
+
 function renderImportReview() {
   const container = document.querySelector('#import-review');
   if (!container) return;
@@ -369,6 +411,7 @@ async function render() {
         <a class="brand" href="#" data-view="home" aria-label="Pesa Trail home"><span class="brand-mark">P</span><span>Pesa<span>Trail</span></span></a>
         <div class="topbar-actions">
           <span class="local-indicator"><span></span> Saved on this device</span>
+          <button class="button button-quiet install-app-button" type="button" data-action="open-install" ${state.isInstalled ? 'hidden' : ''} aria-label="Install Pesa Trail"><span class="install-button-icon" aria-hidden="true">↓</span><span class="install-label">Install app</span></button>
           <button class="button button-quiet" type="button" data-action="export-backup">Download backup</button>
           <button class="icon-button backup-restore" type="button" data-action="restore-backup" aria-label="Restore a backup" title="Restore backup">↥</button>
         </div>
@@ -382,6 +425,7 @@ async function render() {
       ${navigation.map(([view, label, icon]) => `<button type="button" data-view="${view}" class="${state.view === view ? 'active' : ''}" aria-current="${state.view === view ? 'page' : 'false'}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('')}
     </nav>
     <dialog id="transaction-dialog" class="app-dialog"></dialog>
+    <dialog id="install-dialog" class="app-dialog install-dialog"></dialog>
     <dialog id="source-dialog" class="app-dialog source-dialog">
       <form id="source-form" method="dialog">
         <button class="dialog-close" type="button" data-action="close-dialog" aria-label="Close">×</button>
@@ -397,6 +441,7 @@ async function render() {
 
   updateTransactionList();
   renderImportReview();
+  updateInstallButton();
 }
 
 function renderTransactionDialog() {
@@ -629,6 +674,28 @@ app.addEventListener('click', async (event) => {
     const transaction = state.transactions.find((item) => item.id === button.dataset.id);
     if (transaction) openTransaction(transaction);
   } else if (action === 'add-source') openSourceDialog();
+  else if (action === 'open-install') openInstallDialog();
+  else if (action === 'install-now') {
+    if (!installPrompt) {
+      openInstallDialog();
+      return;
+    }
+    try {
+      const promptEvent = installPrompt;
+      installPrompt = null;
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      document.querySelector('#install-dialog')?.close();
+      if (choice.outcome === 'accepted') {
+        showToast('Pesa Trail is being installed.');
+      } else {
+        showToast('No problem — you can install Pesa Trail later.');
+      }
+    } catch (error) {
+      showToast(`Could not open the install prompt: ${error.message}`, true);
+      openInstallDialog();
+    }
+  }
   else if (action === 'close-dialog') button.closest('dialog').close();
   else if (action === 'parse-messages') {
     try {
