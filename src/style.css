@@ -36,6 +36,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .install-app-button { color: var(--green-dark); border-color: #d7e7dc; background: #f2f8f4; }
 .install-app-button:hover { background: #e7f3eb; }
 .install-button-icon { font-size: 17px; line-height: 1; }
+.export-csv-button { color: var(--green-dark); border-color: #d7e7dc; }
+.export-csv-button > span:first-child, .backup-button > span:first-child { font-size: 16px; line-height: 1; }
 .local-indicator { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .local-indicator span { width: 7px; height: 7px; border-radius: 50%; background: #48a978; box-shadow: 0 0 0 3px #e4f3ea; }
 
@@ -233,8 +235,10 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
   .local-indicator { display: none; }
   .topbar-actions { gap: 7px; }
   .topbar-actions .button { min-height: 37px; padding-inline: 11px; font-size: 11px; }
-  .topbar-actions .install-app-button { width: 36px; min-width: 36px; padding: 0; }
-  .install-label { display: none; }
+  .topbar-actions .install-app-button,
+  .topbar-actions .export-csv-button,
+  .topbar-actions .backup-button { width: 36px; min-width: 36px; padding: 0; }
+  .install-label, .export-csv-label, .backup-label { display: none; }
   .backup-restore { width: 35px; height: 35px; }
   .welcome-row { align-items: flex-start; flex-direction: column; gap: 17px; padding: 34px 0 22px; }
   .welcome-row h1 { font-size: 34px; }

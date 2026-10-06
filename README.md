@@ -11,13 +11,16 @@ A mobile-friendly, installable money tracker for recording M-PESA transactions, 
 - Paste M-PESA confirmation messages, review parsed transactions, and save them after checking their details.
 - Search and filter transaction history; edit saved transactions at any time.
 - Install Pesa Trail as a Progressive Web App (PWA) on supported browsers.
-- Export a JSON backup or restore one later.
+- Export transactions as a CSV spreadsheet for Excel or Google Sheets.
+- Download and restore a JSON backup to preserve the complete local dataset.
 
 ## Privacy and data
 
 Pesa Trail stores transaction and source data in the browser on your device using IndexedDB (Dexie). Pasted M-PESA messages are parsed in the browser and are not uploaded. There is no account or cloud sync.
 
-Because your data is stored in the browser, it is not automatically shared with other devices and may be lost if the browser's site data is cleared. Use **Download backup** regularly and keep the exported JSON file somewhere safe. A backup contains your transaction history and should be treated as private financial information.
+Because your data is stored in the browser, it is not automatically shared with other devices and may be lost if the browser's site data is cleared. Use **JSON backup** regularly and keep the exported JSON file somewhere safe. A backup contains your transaction history and sources and should be treated as private financial information. **Export CSV** creates a readable transaction spreadsheet; use JSON backups to restore app data.
+
+The CSV includes the transaction date and ID, type, description, category, amount, fee, total, source names, and source allocation details for split expenses.
 
 The dashboard totals are based only on transactions recorded in Pesa Trail; they are not a live M-PESA balance.
 

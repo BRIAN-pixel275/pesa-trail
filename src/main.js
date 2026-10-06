@@ -1,6 +1,7 @@
 import './style.css';
 import { CAT, SRC, db, getSources, importParsed, needsLabel, saveSources, saveTransaction, summary } from './Db.js';
 import { parseMessages } from './Parser.js';
+import { transactionsToCsv } from './export.js';
 
 const app = document.querySelector('#app');
 let installPrompt = null;
@@ -412,7 +413,8 @@ async function render() {
         <div class="topbar-actions">
           <span class="local-indicator"><span></span> Saved on this device</span>
           <button class="button button-quiet install-app-button" type="button" data-action="open-install" ${state.isInstalled ? 'hidden' : ''} aria-label="Install Pesa Trail"><span class="install-button-icon" aria-hidden="true">↓</span><span class="install-label">Install app</span></button>
-          <button class="button button-quiet" type="button" data-action="export-backup">Download backup</button>
+          <button class="button button-quiet export-csv-button" type="button" data-action="export-csv"><span aria-hidden="true">⇩</span><span class="export-csv-label">Export CSV</span></button>
+          <button class="button button-quiet backup-button" type="button" data-action="export-backup"><span aria-hidden="true">▣</span><span class="backup-label">JSON backup</span></button>
           <button class="icon-button backup-restore" type="button" data-action="restore-backup" aria-label="Restore a backup" title="Restore backup">↥</button>
         </div>
       </header>
@@ -610,6 +612,31 @@ async function saveImport() {
   showToast(`${result.added} transaction${result.added === 1 ? '' : 's'} saved${result.skipped ? ` · ${result.skipped} duplicate${result.skipped === 1 ? '' : 's'} skipped` : ''}.`);
 }
 
+function downloadFile(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportCsv() {
+  const transactions = await db.tx.toArray();
+  if (!transactions.length) {
+    showToast('Add or import transactions before exporting a spreadsheet.', true);
+    return;
+  }
+  const blob = new Blob([transactionsToCsv(transactions)], {
+    type: 'text/csv;charset=utf-8',
+  });
+  downloadFile(blob, `pesa-trail-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
+  showToast(`${transactions.length} transaction${transactions.length === 1 ? '' : 's'} exported as CSV.`);
+}
+
 async function exportBackup() {
   const payload = {
     format: 'pesa-trail-backup-v1',
@@ -618,13 +645,8 @@ async function exportBackup() {
     transactions: await db.tx.toArray(),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `pesa-trail-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-  showToast('Your backup was downloaded.');
+  downloadFile(blob, `pesa-trail-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  showToast('Your JSON backup was downloaded.');
 }
 
 async function restoreBackup(file) {
@@ -714,6 +736,12 @@ app.addEventListener('click', async (event) => {
       await exportBackup();
     } catch (error) {
       showToast(`Could not create backup: ${error.message}`, true);
+    }
+  } else if (action === 'export-csv') {
+    try {
+      await exportCsv();
+    } catch (error) {
+      showToast(`Could not export spreadsheet: ${error.message}`, true);
     }
   } else if (action === 'restore-backup') {
     document.querySelector('#backup-file').click();
