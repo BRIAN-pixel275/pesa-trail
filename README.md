@@ -11,7 +11,6 @@ A mobile-friendly, installable money tracker for recording M-PESA transactions, 
 - Paste M-PESA confirmation messages, review parsed transactions, and save them after checking their details.
 - Search and filter transaction history; edit saved transactions at any time.
 - Optionally protect the app screen with a six-digit PIN; the app locks on reload and can be locked manually.
-- View a six-month spending trend for each money source, including fees and the current month's spending so far.
 - Install Pesa Trail as a Progressive Web App (PWA) on supported browsers.
 - Export transactions as a CSV spreadsheet for Excel or Google Sheets.
 - Download and restore a JSON backup to preserve the complete local dataset.

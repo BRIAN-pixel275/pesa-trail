@@ -4,7 +4,6 @@ import { parseMessagesDetailed } from './Parser.js';
 import { transactionsToCsv } from './export.js';
 import { createPinCredential, lockoutDelay, verifyPin } from './appLock.js';
 import { chargeSummary } from './charges.js';
-import { monthlySpending } from './trends.js';
 
 const app = document.querySelector('#app');
 let installPrompt = null;
@@ -166,40 +165,6 @@ function categoryBreakdown(sourceSummary) {
     </section>`;
 }
 
-function spendingTrend() {
-  const months = monthlySpending(state.transactions, state.selectedSource);
-  const max = Math.max(...months.map((month) => month.amount), 0);
-  const compactMoney = (amount) => new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(amount);
-
-  return `
-    <section class="content-section trend-section">
-      <div class="section-heading">
-        <div><p class="eyebrow">See how it changes</p><h2>Spending trend</h2></div>
-        <label class="breakdown-source"><span class="sr-only">Choose source for spending trend</span><select id="trend-source">${sourceOptions(state.selectedSource)}</select></label>
-      </div>
-      <div class="trend-card">
-        <p class="trend-caption">Monthly money out from ${escapeHtml(state.selectedSource)} · current month is month-to-date</p>
-        <div class="trend-chart">
-          ${months.map((month) => {
-            const percentage = max ? Math.round(month.amount / max * 100) : 0;
-            return `
-              <div class="trend-column">
-                <span class="trend-value">${compactMoney(month.amount)}</span>
-                <div class="trend-track" role="progressbar" aria-label="${escapeHtml(month.label)} spending" aria-valuenow="${month.amount}" aria-valuemin="0" aria-valuemax="${max || 1}">
-                  <span class="trend-bar" style="height:${percentage}%"></span>
-                </div>
-                <span class="trend-month">${escapeHtml(month.label)}</span>
-              </div>`;
-          }).join('')}
-        </div>
-      </div>
-    </section>`;
-}
 function chargesCard(transactions) {
   const charges = chargeSummary(transactions);
   if (!charges.count) return '';
@@ -290,8 +255,6 @@ function dashboardView(sourceSummary) {
       <p class="helper-text">Source totals are based on transactions you have recorded; they are not your M-PESA balance.</p>
     </section>
     ${categoryBreakdown(sourceSummary)}
-    ${spendingTrend()}
-
     <section class="content-section transactions-section">
       <div class="section-heading">
         <div><p class="eyebrow">Your latest activity</p><h2>Recent transactions</h2></div>
@@ -1067,11 +1030,6 @@ app.addEventListener('change', async (event) => {
     return;
   }
   if (target.id === 'breakdown-source') {
-    state.selectedSource = target.value;
-    await render();
-    return;
-  }
-  if (target.id === 'trend-source') {
     state.selectedSource = target.value;
     await render();
     return;

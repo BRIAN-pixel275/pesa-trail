@@ -106,14 +106,6 @@ h1 { margin-bottom: 9px; font-size: clamp(31px, 4vw, 43px); line-height: 1.15; l
 .breakdown-empty .empty-icon { flex: 0 0 auto; width: 38px; height: 38px; margin: 0; }
 .breakdown-empty p { margin: 0; color: var(--muted); font-size: 11px; }
 .breakdown-empty strong { color: var(--ink); }
-.trend-card { padding: 18px 20px 15px; border: 1px solid var(--border); border-radius: 16px; background: white; box-shadow: var(--shadow); }
-.trend-caption { margin: 0 0 12px; color: var(--muted); font-size: 10px; }
-.trend-chart { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 10px; min-height: 176px; }
-.trend-column { min-width: 0; display: grid; grid-template-rows: 18px 1fr 20px; align-items: end; gap: 5px; text-align: center; }
-.trend-value { overflow: hidden; color: #65746a; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.trend-track { width: min(100%, 48px); height: 122px; justify-self: center; display: flex; align-items: flex-end; overflow: hidden; border-radius: 8px 8px 3px 3px; background: #f0f3f0; }
-.trend-bar { display: block; width: 100%; border-radius: 7px 7px 2px 2px; background: linear-gradient(180deg, #72b48c, #36845d); transition: height .2s ease; }
-.trend-month { color: #6e7a71; font-size: 10px; font-weight: 600; }
 
 .transactions-section { margin-top: 43px; }
 .review-callout { width: 100%; display: flex; align-items: center; gap: 12px; margin: 0 0 11px; padding: 13px 15px; border: 1px solid #f0dfbe; border-radius: 13px; background: #fffaf0; color: #805c2e; text-align: left; }
@@ -280,10 +272,6 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
   .period-select { margin-left: auto; }
   .breakdown-source select { min-width: 102px; }
   .breakdown-card { padding: 15px; }
-  .trend-card { padding: 15px 10px 12px; }
-  .trend-chart { gap: 5px; }
-  .trend-track { height: 105px; }
-  .trend-value { font-size: 8px; }
   .source-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .source-card { min-height: 146px; padding: 14px; }
   .source-add-card { min-height: 96px; flex-direction: column; gap: 7px; }
