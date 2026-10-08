@@ -1,5 +1,5 @@
 import './style.css';
-import { CAT, SRC, db, getSources, importParsed, needsLabel, saveSources, saveTransaction, summary } from './Db.js';
+import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, saveSources, saveTransaction, summary } from './Db.js';
 import { parseMessages } from './Parser.js';
 import { transactionsToCsv } from './export.js';
 import { createPinCredential, verifyPin } from './appLock.js';
@@ -572,7 +572,8 @@ function renderTransactionDialog() {
         }
       </div>
       <p class="form-error" role="alert"></p>
-      <div class="dialog-actions"><button class="button button-quiet" type="button" data-action="close-dialog">Cancel</button><button class="button button-primary" type="submit">Save transaction</button></div>
+           <div class="dialog-actions">${draft.id ? '<button class="button button-quiet delete-button" type="button" data-action="delete-transaction">Delete</button>' : ''}<button class="button button-quiet" type="button" data-action="close-dialog">Cancel</button><button class="button button-primary" type="submit">Save transaction</button>
+           </div>
       <p class="dialog-privacy">This entry is saved only on this device.</p>
     </form>`;
 }
@@ -604,14 +605,23 @@ function syncTransactionDraft(form = document.querySelector('#transaction-form')
   };
 }
 
-function showToast(message, isError = false) {
+function showToast(message, isError = false, undo = null) {
   const toast = document.querySelector('.toast');
   if (!toast) return;
   toast.textContent = message;
+  showToast.pending = undo?.run || null;
+  if (undo) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'toast-action';
+    button.dataset.action = 'toast-action';
+    button.textContent = undo.label;
+    toast.append(' ', button);
+  }
   toast.classList.toggle('error', isError);
   toast.classList.add('visible');
   window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => toast.classList.remove('visible'), 3600);
+  showToast.timer = window.setTimeout(() => toast.classList.remove('visible'), undo ? 7000 : 3600);
 }
 
 function updateAllocationTotal(editor, total) {
@@ -810,6 +820,31 @@ app.addEventListener('click', async (event) => {
       showToast('App lock removed.');
     } catch (lockError) {
       error.textContent = `Could not remove app lock: ${lockError.message}`;
+    }
+  }
+  else if (action === 'toast-action') {
+    const run = showToast.pending;
+    showToast.pending = null;
+    document.querySelector('.toast')?.classList.remove('visible');
+    await run?.();
+  } else if (action === 'delete-transaction') {
+    const id = state.transactionDraft?.id;
+    if (!id) return;
+    try {
+      const removed = await deleteTransaction(id);
+      document.querySelector('#transaction-dialog').close();
+      state.transactionDraft = null;
+      await render();
+      showToast('Transaction deleted.', false, {
+        label: 'Undo',
+        run: async () => {
+          await restoreDeleted(removed);
+          await render();
+          showToast('Transaction restored.');
+        },
+      });
+    } catch (deleteError) {
+      showToast(`Could not delete transaction: ${deleteError.message}`, true);
     }
   }
   else if (action === 'new-expense') openTransaction(null, 'out');
