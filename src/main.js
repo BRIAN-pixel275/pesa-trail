@@ -1,5 +1,5 @@
 import './style.css';
-import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, saveSources, saveTransaction, summary } from './Db.js';
+import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, restoreRules, saveSources, saveTransaction, summary } from './Db.js';
 import { parseMessages } from './Parser.js';
 import { transactionsToCsv } from './export.js';
 import { createPinCredential, verifyPin } from './appLock.js';
@@ -755,6 +755,7 @@ async function exportBackup() {
     exportedAt: new Date().toISOString(),
     sources: state.sources,
     transactions: await db.tx.toArray(),
+    rules: await db.rules.toArray(),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   downloadFile(blob, `pesa-trail-backup-${new Date().toISOString().slice(0, 10)}.json`);
@@ -781,7 +782,8 @@ async function restoreBackup(file) {
     throw new Error('This does not look like a valid Pesa Trail backup.');
   }
 
-  await db.tx.bulkPut(payload.transactions);
+    await db.tx.bulkPut(payload.transactions);
+  await restoreRules(payload.rules);
   if (Array.isArray(payload.sources) && payload.sources.length) {
     await saveSources(payload.sources);
   }
