@@ -2,7 +2,7 @@ import './style.css';
 import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, restoreRules, saveSources, saveTransaction, summary } from './Db.js';
 import { parseMessagesDetailed } from './Parser.js';
 import { transactionsToCsv } from './export.js';
-import { createPinCredential, verifyPin } from './appLock.js';
+import { createPinCredential, lockoutDelay, verifyPin } from './appLock.js';
 import { chargeSummary } from './charges.js';
 import { monthlySpending } from './trends.js';
 
@@ -22,6 +22,8 @@ const state = {
   transactionDraft: null,
   lockCredential: null,
    lockChecked: false,
+  failedUnlocks: 0,
+  lockedUntil: 0,
   importUnrecognized: [],
   locked: false,
   isInstalled: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
@@ -1112,14 +1114,26 @@ app.addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = event.target;
     const error = form.querySelector('.form-error');
-    const pin = new FormData(form).get('pin');
+       const pin = new FormData(form).get('pin');
+    const waitMs = state.lockedUntil - Date.now();
+    if (waitMs > 0) {
+      error.textContent = `Too many attempts. Try again in ${Math.ceil(waitMs / 1000)} seconds.`;
+      return;
+    }
     try {
       if (!await verifyPin(pin, state.lockCredential)) {
-        error.textContent = 'That PIN is not correct. Try again.';
+        state.failedUnlocks += 1;
+        const delay = lockoutDelay(state.failedUnlocks);
+        state.lockedUntil = delay ? Date.now() + delay : 0;
+        error.textContent = delay
+          ? `That PIN is not correct. Wait ${Math.ceil(delay / 1000)} seconds before trying again.`
+          : 'That PIN is not correct. Try again.';
         form.querySelector('[name="pin"]').value = '';
         form.querySelector('[name="pin"]').focus();
         return;
       }
+      state.failedUnlocks = 0;
+      state.lockedUntil = 0;
       state.locked = false;
       await render();
     } catch (lockError) {
@@ -1227,7 +1241,17 @@ app.addEventListener('change', async (event) => {
     event.target.value = '';
   }
 });
-
+const AUTO_LOCK_MS = 60_000;
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    return;
+  }
+  const awayFor = hiddenAt ? Date.now() - hiddenAt : 0;
+  hiddenAt = 0;
+  if (state.lockCredential && !state.locked && awayFor >= AUTO_LOCK_MS) lockApp();
+});
 render().catch((error) => {
   app.innerHTML = `<main class="startup-error"><h1>Could not open Pesa Trail</h1><p>${escapeHtml(error.message)}</p><p>Your saved data has not been changed.</p></main>`;
 });

@@ -64,3 +64,9 @@ export async function verifyPin(pin, credential) {
   const key = await deriveKey(pin, salt);
   return cryptoApi().subtle.verify('HMAC', key, signature, MESSAGE);
 }
+// Speed bump for repeated wrong PINs: free for 4 tries, then 30s, 60s, 2min ... capped at 15min.
+// This is client-side only, so it slows casual guessing; it is not a security boundary.
+export function lockoutDelay(failures) {
+  if (failures < 5) return 0;
+  return Math.min(30_000 * 2 ** (failures - 5), 15 * 60_000);
+}
