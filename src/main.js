@@ -3,6 +3,7 @@ import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, 
 import { parseMessagesDetailed } from './Parser.js';
 import { transactionsToCsv } from './export.js';
 import { createPinCredential, verifyPin } from './appLock.js';
+import { chargeSummary } from './charges.js';
 import { monthlySpending } from './trends.js';
 
 const app = document.querySelector('#app');
@@ -197,6 +198,26 @@ function spendingTrend() {
       </div>
     </section>`;
 }
+function chargesCard(transactions) {
+  const charges = chargeSummary(transactions);
+  if (!charges.count) return '';
+  const when = state.period === 'month' ? 'this month' : 'overall';
+  return `
+    <section class="content-section charges-section">
+      <div class="section-heading">
+        <div><p class="eyebrow">The cost of moving money</p><h2>M-PESA charges</h2></div>
+      </div>
+      <div class="charges-card">
+        <div class="charges-total">
+          <strong>${money(charges.total)}</strong>
+          <span>${charges.count} charged transaction${charges.count === 1 ? '' : 's'} ${when} · ${(charges.share * 100).toFixed(1)}% of money out</span>
+        </div>
+        <ul class="charges-list">
+          ${charges.top.map((item) => `<li><span>${escapeHtml(item.party)}</span><span>${money(item.fee)} · ${item.count}×</span></li>`).join('')}
+        </ul>
+      </div>
+    </section>`;
+}
 
 function dashboardView(sourceSummary) {
   const now = new Date();
@@ -242,6 +263,8 @@ function dashboardView(sourceSummary) {
         <span class="stat-symbol neutral-symbol" aria-hidden="true">＝</span>
       </article>
     </section>
+
+    ${chargesCard(monthTransactions)}
 
     <section class="content-section">
       <div class="section-heading">
