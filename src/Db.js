@@ -157,3 +157,22 @@ export async function summary(sinceTs = 0) {
     return { src: source, in: income, out: spent, left: income - spent, byCat };
   });
 }
+
+export async function deleteTransaction(id) {
+  const transaction = await db.tx.get(id);
+  if (!transaction) throw new Error('That transaction could not be found.');
+  await db.tx.delete(id);
+  return transaction; // keep a copy so the caller can offer Undo
+}
+
+export async function restoreDeleted(transaction) {
+  await db.tx.put(transaction);
+}
+
+export async function restoreRules(rules) {
+  const valid = (Array.isArray(rules) ? rules : []).filter(
+    (rule) => rule && typeof rule.party === 'string' && rule.party,
+  );
+  if (valid.length) await db.rules.bulkPut(valid);
+  return valid.length;
+}
