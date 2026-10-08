@@ -10,6 +10,8 @@ A mobile-friendly, installable money tracker for recording M-PESA transactions, 
 - Review monthly or all-time totals, source balances and spending by category.
 - Paste M-PESA confirmation messages, review parsed transactions, and save them after checking their details.
 - Search and filter transaction history; edit saved transactions at any time.
+- Optionally protect the app screen with a six-digit PIN; the app locks on reload and can be locked manually.
+- View a six-month spending trend for each money source, including fees and the current month's spending so far.
 - Install Pesa Trail as a Progressive Web App (PWA) on supported browsers.
 - Export transactions as a CSV spreadsheet for Excel or Google Sheets.
 - Download and restore a JSON backup to preserve the complete local dataset.
@@ -19,6 +21,8 @@ A mobile-friendly, installable money tracker for recording M-PESA transactions, 
 Pesa Trail stores transaction and source data in the browser on your device using IndexedDB (Dexie). Pasted M-PESA messages are parsed in the browser and are not uploaded. There is no account or cloud sync.
 
 Because your data is stored in the browser, it is not automatically shared with other devices and may be lost if the browser's site data is cleared. Use **JSON backup** regularly and keep the exported JSON file somewhere safe. A backup contains your transaction history and sources and should be treated as private financial information. **Export CSV** creates a readable transaction spreadsheet; use JSON backups to restore app data.
+
+The optional app PIN is stored as a salted verifier and is a privacy screen, not encryption. It can deter casual viewing but does not prevent someone with access to browser developer tools or the device's browser data from reading the locally stored records. The PIN is not included in JSON backups.
 
 The CSV includes the transaction date and ID, type, description, category, amount, fee, total, source names, and source allocation details for split expenses.
 

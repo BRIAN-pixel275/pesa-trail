@@ -2,6 +2,8 @@ import './style.css';
 import { CAT, SRC, db, getSources, importParsed, needsLabel, saveSources, saveTransaction, summary } from './Db.js';
 import { parseMessages } from './Parser.js';
 import { transactionsToCsv } from './export.js';
+import { createPinCredential, verifyPin } from './appLock.js';
+import { monthlySpending } from './trends.js';
 
 const app = document.querySelector('#app');
 let installPrompt = null;
@@ -17,6 +19,9 @@ const state = {
   importText: '',
   importSkipped: 0,
   transactionDraft: null,
+  lockCredential: null,
+  lockChecked: false,
+  locked: false,
   isInstalled: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
 };
 
@@ -157,6 +162,41 @@ function categoryBreakdown(sourceSummary) {
     </section>`;
 }
 
+function spendingTrend() {
+  const months = monthlySpending(state.transactions, state.selectedSource);
+  const max = Math.max(...months.map((month) => month.amount), 0);
+  const compactMoney = (amount) => new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(amount);
+
+  return `
+    <section class="content-section trend-section">
+      <div class="section-heading">
+        <div><p class="eyebrow">See how it changes</p><h2>Spending trend</h2></div>
+        <label class="breakdown-source"><span class="sr-only">Choose source for spending trend</span><select id="trend-source">${sourceOptions(state.selectedSource)}</select></label>
+      </div>
+      <div class="trend-card">
+        <p class="trend-caption">Monthly money out from ${escapeHtml(state.selectedSource)} · current month is month-to-date</p>
+        <div class="trend-chart">
+          ${months.map((month) => {
+            const percentage = max ? Math.round(month.amount / max * 100) : 0;
+            return `
+              <div class="trend-column">
+                <span class="trend-value">${compactMoney(month.amount)}</span>
+                <div class="trend-track" role="progressbar" aria-label="${escapeHtml(month.label)} spending" aria-valuenow="${month.amount}" aria-valuemin="0" aria-valuemax="${max || 1}">
+                  <span class="trend-bar" style="height:${percentage}%"></span>
+                </div>
+                <span class="trend-month">${escapeHtml(month.label)}</span>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </section>`;
+}
+
 function dashboardView(sourceSummary) {
   const now = new Date();
   const monthName = state.period === 'month'
@@ -224,6 +264,7 @@ function dashboardView(sourceSummary) {
       <p class="helper-text">Source totals are based on transactions you have recorded; they are not your M-PESA balance.</p>
     </section>
     ${categoryBreakdown(sourceSummary)}
+    ${spendingTrend()}
 
     <section class="content-section transactions-section">
       <div class="section-heading">
@@ -385,6 +426,34 @@ function renderImportReview() {
 }
 
 async function render() {
+  if (!state.lockChecked) {
+    const savedLock = await db.settings.get('appLock');
+    state.lockCredential = savedLock?.value || null;
+    state.locked = Boolean(state.lockCredential);
+    state.lockChecked = true;
+  }
+
+  if (state.locked) {
+    app.innerHTML = `
+      <main class="lock-screen">
+        <div class="lock-card">
+          <span class="brand-mark lock-mark" aria-hidden="true">P</span>
+          <p class="eyebrow">Private by design</p>
+          <h1>Pesa Trail is locked</h1>
+          <p>Enter your six-digit PIN to view your money trail.</p>
+          <form id="unlock-form">
+            <label class="field-label" for="unlock-pin">App PIN</label>
+            <input id="unlock-pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{6}" minlength="6" maxlength="6" aria-describedby="unlock-error" required autofocus>
+            <p id="unlock-error" class="form-error" role="alert"></p>
+            <button class="button button-primary full-button" type="submit">Unlock Pesa Trail</button>
+          </form>
+          <p class="lock-note">This PIN protects the app screen on this device. It does not encrypt your saved data.</p>
+        </div>
+      </main>`;
+    app.querySelector('#unlock-pin').focus();
+    return;
+  }
+
   const [sources, transactions, monthSummary, allSummary] = await Promise.all([
     getSources(),
     db.tx.toArray(),
@@ -412,6 +481,7 @@ async function render() {
         <a class="brand" href="#" data-view="home" aria-label="Pesa Trail home"><span class="brand-mark">P</span><span>Pesa<span>Trail</span></span></a>
         <div class="topbar-actions">
           <span class="local-indicator"><span></span> Saved on this device</span>
+          <button class="button button-quiet lock-settings" type="button" data-action="${state.lockCredential ? 'lock-now' : 'manage-lock'}" aria-label="${state.lockCredential ? 'Lock Pesa Trail' : 'Set app PIN'}" title="${state.lockCredential ? 'Lock Pesa Trail' : 'Set app PIN'}"><span aria-hidden="true">${state.lockCredential ? '▣' : '⚙'}</span><span class="lock-settings-label">${state.lockCredential ? 'Lock' : 'Set PIN'}</span></button>
           <button class="button button-quiet install-app-button" type="button" data-action="open-install" ${state.isInstalled ? 'hidden' : ''} aria-label="Install Pesa Trail"><span class="install-button-icon" aria-hidden="true">↓</span><span class="install-label">Install app</span></button>
           <button class="button button-quiet export-csv-button" type="button" data-action="export-csv"><span aria-hidden="true">⇩</span><span class="export-csv-label">Export CSV</span></button>
           <button class="button button-quiet backup-button" type="button" data-action="export-backup"><span aria-hidden="true">▣</span><span class="backup-label">JSON backup</span></button>
@@ -421,13 +491,32 @@ async function render() {
       <main>
         ${body}
       </main>
-      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays in this browser.</span></footer>
+      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays in this browser.</span><button class="text-button footer-lock-settings" type="button" data-action="manage-lock">App lock settings</button></footer>
     </div>
     <nav class="bottom-nav" aria-label="Main navigation">
       ${navigation.map(([view, label, icon]) => `<button type="button" data-view="${view}" class="${state.view === view ? 'active' : ''}" aria-current="${state.view === view ? 'page' : 'false'}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('')}
     </nav>
     <dialog id="transaction-dialog" class="app-dialog"></dialog>
     <dialog id="install-dialog" class="app-dialog install-dialog"></dialog>
+    <dialog id="lock-dialog" class="app-dialog lock-dialog">
+      <form id="lock-form">
+        <button class="dialog-close" type="button" data-action="close-dialog" aria-label="Close">×</button>
+        <p class="eyebrow">On-device privacy</p>
+        <h2>${state.lockCredential ? 'Manage your app PIN' : 'Set an app PIN'}</h2>
+        <p class="dialog-copy">Use a six-digit PIN to lock the app manually or whenever it is reopened or reloaded.</p>
+        ${state.lockCredential ? '<label class="field-label" for="current-pin">Current PIN</label><input id="current-pin" name="currentPin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{6}" minlength="6" maxlength="6" required>' : ''}
+        <label class="field-label" for="new-pin">${state.lockCredential ? 'New six-digit PIN' : 'Six-digit PIN'}</label>
+        <input id="new-pin" name="newPin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{6}" minlength="6" maxlength="6" required>
+        <label class="field-label" for="confirm-pin">Confirm PIN</label>
+        <input id="confirm-pin" name="confirmPin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{6}" minlength="6" maxlength="6" required>
+        <p class="form-error" role="alert"></p>
+        <div class="dialog-actions lock-actions">
+          ${state.lockCredential ? '<button class="button button-quiet lock-remove" type="button" data-action="remove-lock">Remove PIN</button>' : ''}
+          <button class="button button-primary" type="submit">${state.lockCredential ? 'Update PIN' : 'Set PIN'}</button>
+        </div>
+        <p class="lock-note">Your PIN is stored as a salted verifier, not as plain text. App lock is a privacy screen, not data encryption.</p>
+      </form>
+    </dialog>
     <dialog id="source-dialog" class="app-dialog source-dialog">
       <form id="source-form" method="dialog">
         <button class="dialog-close" type="button" data-action="close-dialog" aria-label="Close">×</button>
@@ -548,6 +637,19 @@ function openSourceDialog() {
   dialog.querySelector('.form-error').textContent = '';
   dialog.showModal();
   dialog.querySelector('#new-source').focus();
+}
+
+function openLockDialog() {
+  const dialog = document.querySelector('#lock-dialog');
+  dialog.querySelector('.form-error').textContent = '';
+  dialog.showModal();
+  dialog.querySelector(state.lockCredential ? '#current-pin' : '#new-pin').focus();
+}
+
+async function lockApp() {
+  if (!state.lockCredential) return;
+  state.locked = true;
+  await render();
 }
 
 async function parseImportText() {
@@ -690,7 +792,27 @@ app.addEventListener('click', async (event) => {
   if (!button) return;
   const action = button.dataset.action;
 
-  if (action === 'new-expense') openTransaction(null, 'out');
+  if (action === 'manage-lock') openLockDialog();
+  else if (action === 'lock-now') await lockApp();
+  else if (action === 'remove-lock') {
+    const form = document.querySelector('#lock-form');
+    const error = form.querySelector('.form-error');
+    const pin = new FormData(form).get('currentPin');
+    try {
+      if (!await verifyPin(pin, state.lockCredential)) {
+        error.textContent = 'The current PIN is incorrect.';
+        return;
+      }
+      await db.settings.delete('appLock');
+      state.lockCredential = null;
+      document.querySelector('#lock-dialog').close();
+      await render();
+      showToast('App lock removed.');
+    } catch (lockError) {
+      error.textContent = `Could not remove app lock: ${lockError.message}`;
+    }
+  }
+  else if (action === 'new-expense') openTransaction(null, 'out');
   else if (action === 'new-income') openTransaction(null, 'in');
   else if (action === 'edit-transaction') {
     const transaction = state.transactions.find((item) => item.id === button.dataset.id);
@@ -830,6 +952,11 @@ app.addEventListener('change', async (event) => {
     await render();
     return;
   }
+  if (target.id === 'trend-source') {
+    state.selectedSource = target.value;
+    await render();
+    return;
+  }
   if (target.name === 'type' && target.form?.id === 'transaction-form') {
     syncTransactionDraft();
     state.transactionDraft.type = target.value;
@@ -864,7 +991,54 @@ app.addEventListener('change', async (event) => {
 });
 
 app.addEventListener('submit', async (event) => {
-  if (event.target.id === 'transaction-form') {
+  if (event.target.id === 'unlock-form') {
+    event.preventDefault();
+    const form = event.target;
+    const error = form.querySelector('.form-error');
+    const pin = new FormData(form).get('pin');
+    try {
+      if (!await verifyPin(pin, state.lockCredential)) {
+        error.textContent = 'That PIN is not correct. Try again.';
+        form.querySelector('[name="pin"]').value = '';
+        form.querySelector('[name="pin"]').focus();
+        return;
+      }
+      state.locked = false;
+      await render();
+    } catch (lockError) {
+      error.textContent = `Could not verify the PIN: ${lockError.message}`;
+    }
+  } else if (event.target.id === 'lock-form') {
+    event.preventDefault();
+    const form = event.target;
+    const values = new FormData(form);
+    const error = form.querySelector('.form-error');
+    const currentPin = values.get('currentPin');
+    const newPin = values.get('newPin');
+    if (!/^\d{6}$/.test(newPin)) {
+      error.textContent = 'Choose a six-digit PIN.';
+      return;
+    }
+    if (newPin !== values.get('confirmPin')) {
+      error.textContent = 'The PIN entries do not match.';
+      return;
+    }
+    try {
+      const hadLock = Boolean(state.lockCredential);
+      if (state.lockCredential && !await verifyPin(currentPin, state.lockCredential)) {
+        error.textContent = 'The current PIN is incorrect.';
+        return;
+      }
+      const credential = await createPinCredential(newPin);
+      await db.settings.put({ key: 'appLock', value: credential });
+      state.lockCredential = credential;
+      document.querySelector('#lock-dialog').close();
+      await render();
+      showToast(hadLock ? 'App PIN updated.' : 'App PIN saved. Pesa Trail will lock each time it is reopened.');
+    } catch (lockError) {
+      error.textContent = `Could not save the app PIN: ${lockError.message}`;
+    }
+  } else if (event.target.id === 'transaction-form') {
     event.preventDefault();
     const form = event.target;
     syncTransactionDraft(form);

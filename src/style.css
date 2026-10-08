@@ -106,6 +106,14 @@ h1 { margin-bottom: 9px; font-size: clamp(31px, 4vw, 43px); line-height: 1.15; l
 .breakdown-empty .empty-icon { flex: 0 0 auto; width: 38px; height: 38px; margin: 0; }
 .breakdown-empty p { margin: 0; color: var(--muted); font-size: 11px; }
 .breakdown-empty strong { color: var(--ink); }
+.trend-card { padding: 18px 20px 15px; border: 1px solid var(--border); border-radius: 16px; background: white; box-shadow: var(--shadow); }
+.trend-caption { margin: 0 0 12px; color: var(--muted); font-size: 10px; }
+.trend-chart { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 10px; min-height: 176px; }
+.trend-column { min-width: 0; display: grid; grid-template-rows: 18px 1fr 20px; align-items: end; gap: 5px; text-align: center; }
+.trend-value { overflow: hidden; color: #65746a; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.trend-track { width: min(100%, 48px); height: 122px; justify-self: center; display: flex; align-items: flex-end; overflow: hidden; border-radius: 8px 8px 3px 3px; background: #f0f3f0; }
+.trend-bar { display: block; width: 100%; border-radius: 7px 7px 2px 2px; background: linear-gradient(180deg, #72b48c, #36845d); transition: height .2s ease; }
+.trend-month { color: #6e7a71; font-size: 10px; font-weight: 600; }
 
 .transactions-section { margin-top: 43px; }
 .review-callout { width: 100%; display: flex; align-items: center; gap: 12px; margin: 0 0 11px; padding: 13px 15px; border: 1px solid #f0dfbe; border-radius: 13px; background: #fffaf0; color: #805c2e; text-align: left; }
@@ -189,7 +197,8 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
 .allocation-invalid, .allocation-invalid strong { color: #b05236 !important; }
 .remove-allocation { width: 28px; height: 32px; border: 0; background: transparent; color: #997f72; font-size: 18px; }
 
-.app-footer { display: flex; justify-content: space-between; gap: 12px; padding: 28px 2px 10px; color: #96a098; font-size: 10px; }
+.app-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 28px 2px 10px; color: #96a098; font-size: 10px; }
+.footer-lock-settings { flex: 0 0 auto; font-size: 10px; }
 .bottom-nav { position: fixed; z-index: 5; right: 0; bottom: 0; left: 0; display: flex; justify-content: center; gap: 6px; padding: 9px 12px max(9px, env(safe-area-inset-bottom)); border-top: 1px solid rgba(225, 231, 225, .92); background: rgba(255, 255, 255, .95); backdrop-filter: blur(16px); }
 .bottom-nav button { width: min(150px, 31vw); min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 12px; background: transparent; color: #839087; font-size: 9px; font-weight: 600; }
 .bottom-nav button.active { background: #edf5ef; color: var(--green); }
@@ -211,6 +220,18 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
 .dialog-privacy { margin: 13px 0 0; color: #87928a; font-size: 10px; text-align: center; }
 .form-error { min-height: 0; margin: 8px 0 0; color: #b34430; font-size: 11px; }
 .form-error:empty { display: none; }
+.lock-dialog { width: min(440px, calc(100% - 28px)); }
+.lock-dialog .dialog-copy { margin: -8px 0 16px; }
+.lock-actions { justify-content: space-between; }
+.lock-remove { color: #a83f30; }
+.lock-note { margin: 15px 0 0; color: #7d8981; font-size: 10px; line-height: 1.6; }
+.lock-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at top, #e8f3ec, #f6f7f4 64%); }
+.lock-card { width: min(390px, 100%); padding: 32px; border: 1px solid var(--border); border-radius: 22px; background: white; box-shadow: var(--shadow); }
+.lock-mark { margin-bottom: 23px; }
+.lock-card h1 { margin-bottom: 8px; font-size: 29px; letter-spacing: -1px; }
+.lock-card > p:not(.eyebrow) { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.lock-card .lock-note { margin: 17px 0 0; font-size: 10px; }
+.lock-card .full-button { margin-top: 14px; }
 .source-dialog { width: min(420px, calc(100% - 28px)); }
 .source-dialog .full-button { margin-top: 10px; }
 .install-dialog { width: min(420px, calc(100% - 28px)); text-align: center; }
@@ -233,12 +254,13 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
   .app-shell { width: min(100% - 32px, 560px); padding-bottom: 103px; }
   .topbar { height: 69px; }
   .local-indicator { display: none; }
-  .topbar-actions { gap: 7px; }
+  .topbar-actions { gap: 4px; }
   .topbar-actions .button { min-height: 37px; padding-inline: 11px; font-size: 11px; }
   .topbar-actions .install-app-button,
+  .topbar-actions .lock-settings,
   .topbar-actions .export-csv-button,
   .topbar-actions .backup-button { width: 36px; min-width: 36px; padding: 0; }
-  .install-label, .export-csv-label, .backup-label { display: none; }
+  .install-label, .export-csv-label, .backup-label, .lock-settings-label { display: none; }
   .backup-restore { width: 35px; height: 35px; }
   .welcome-row { align-items: flex-start; flex-direction: column; gap: 17px; padding: 34px 0 22px; }
   .welcome-row h1 { font-size: 34px; }
@@ -256,6 +278,10 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
   .period-select { margin-left: auto; }
   .breakdown-source select { min-width: 102px; }
   .breakdown-card { padding: 15px; }
+  .trend-card { padding: 15px 10px 12px; }
+  .trend-chart { gap: 5px; }
+  .trend-track { height: 105px; }
+  .trend-value { font-size: 8px; }
   .source-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .source-card { min-height: 146px; padding: 14px; }
   .source-add-card { min-height: 96px; flex-direction: column; gap: 7px; }
@@ -284,12 +310,18 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
 @media (max-width: 390px) {
   .app-shell { width: calc(100% - 24px); }
   .topbar-actions .button { font-size: 10px; }
+  .topbar-actions .install-app-button,
+  .topbar-actions .lock-settings,
+  .topbar-actions .export-csv-button,
+  .topbar-actions .backup-button { width: 31px; min-width: 31px; }
+  .backup-restore { width: 31px; }
   .stat-card { padding-inline: 12px; }
   .stat-card strong { font-size: 19px; }
   .source-card { padding: 12px; }
   .source-net { font-size: 18px; }
   .transaction-amount { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
   .app-dialog { padding: 20px 17px; }
+  .lock-card { padding: 25px 20px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-span { grid-column: auto; }
 }
