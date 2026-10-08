@@ -52,7 +52,9 @@ The install option requires the app to be served from HTTPS, or from localhost d
 
 ## Publishing updates
 
-The Vercel project is connected to this GitHub repository. Push changes to the configured production branch (typically `main`) to trigger a Vercel production deployment. Once deployed, the PWA service worker automatically installs the updated app on supported browsers. The footer displays the package version together with the short Git commit SHA (for example, `v0.0.0+1a2b3c4`) so you can identify which build is running. Preview deployments for other branches do not replace the production deployment.
+The Vercel project is connected to this GitHub repository. Push changes to the configured production branch (typically `main`) to trigger a Vercel production deployment. Once deployed, the PWA service worker automatically installs the updated app on supported browsers. The footer displays the app version (for example, `Version v1.0.0`). Increase the `version` in `package.json` for each release (for example, `1.0.0` to `1.1.0`) so the deployed app shows the new version. Preview deployments for other branches do not replace the production deployment.
+
+As a PWA, Pesa Trail cannot set a developer-controlled version field in the phone's system **App info** screen. The version is visible inside Pesa Trail; showing it in Android Settings requires packaging the PWA as a native Android app.
 
 ## Importing M-PESA messages
 

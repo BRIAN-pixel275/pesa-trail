@@ -491,7 +491,7 @@ async function render() {
       <main>
         ${body}
       </main>
-      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays in this browser.</span><span class="app-version" title="Build version">v${escapeHtml(import.meta.env.APP_VERSION)}</span><button class="text-button footer-lock-settings" type="button" data-action="manage-lock">App lock settings</button></footer>
+      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays in this browser.</span><span class="app-version" title="App version">Version v${escapeHtml(import.meta.env.APP_VERSION)}</span><button class="text-button footer-lock-settings" type="button" data-action="manage-lock">App lock settings</button></footer>
     </div>
     <nav class="bottom-nav" aria-label="Main navigation">
       ${navigation.map(([view, label, icon]) => `<button type="button" data-view="${view}" class="${state.view === view ? 'active' : ''}" aria-current="${state.view === view ? 'page' : 'false'}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('')}
