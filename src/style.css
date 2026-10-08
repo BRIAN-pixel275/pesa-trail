@@ -333,3 +333,6 @@ textarea::placeholder, input::placeholder { color: #a4aea7; }
 }
 
 .delete-button { margin-right: auto; min-width: 0 !important; color: #a83f30; }
+
+.unrecognized-text { margin: 0 0 12px; max-height: 5.4em; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.unrecognized-actions { display: flex; gap: 9px; }

@@ -1,6 +1,6 @@
 import './style.css';
 import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, restoreRules, saveSources, saveTransaction, summary } from './Db.js';
-import { parseMessages } from './Parser.js';
+import { parseMessagesDetailed } from './Parser.js';
 import { transactionsToCsv } from './export.js';
 import { createPinCredential, verifyPin } from './appLock.js';
 import { monthlySpending } from './trends.js';
@@ -20,7 +20,8 @@ const state = {
   importSkipped: 0,
   transactionDraft: null,
   lockCredential: null,
-  lockChecked: false,
+   lockChecked: false,
+  importUnrecognized: [],
   locked: false,
   isInstalled: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
 };
@@ -324,7 +325,8 @@ function importView() {
         <ul><li>Already-imported messages are skipped.</li><li>Your source and category choices can be remembered for the same person or business.</li><li>Messages this version does not recognize can still be entered manually.</li></ul>
       </aside>
     </section>
-    <section id="import-review" class="content-section import-review" hidden></section>`;
+        <section id="import-review" class="content-section import-review" hidden></section>
+    <section id="import-unrecognized" class="content-section import-review" hidden></section>`;
 }
 
 function transactionListMarkup() {
@@ -424,7 +426,32 @@ function renderImportReview() {
       }).join('')}
     </div>`;
 }
-
+function renderUnrecognized() {
+  const container = document.querySelector('#import-unrecognized');
+  if (!container) return;
+  const items = state.importUnrecognized;
+  if (!items.length) {
+    container.hidden = true;
+    container.innerHTML = '';
+    return;
+  }
+  container.hidden = false;
+  container.innerHTML = `
+    <div class="section-heading">
+      <div><p class="eyebrow">Could not read automatically</p><h2>${items.length} message${items.length === 1 ? '' : 's'} need a quick look</h2></div>
+    </div>
+    <p class="helper-text">Pesa Trail does not recognize these yet (for example Fuliza, M-Shwari or reversals). Add each one by hand. The receipt ID is kept, so it will not be imported twice.</p>
+    <div class="import-draft-list">
+      ${items.map((item, index) => `
+        <article class="import-draft unrecognized-item">
+          <p class="unrecognized-text">${escapeHtml(item.text)}</p>
+          <div class="unrecognized-actions">
+            <button class="button button-primary" type="button" data-action="add-unrecognized" data-index="${index}">Add manually</button>
+            <button class="button button-quiet" type="button" data-action="dismiss-unrecognized" data-index="${index}">Dismiss</button>
+          </div>
+        </article>`).join('')}
+    </div>`;
+}
 async function render() {
   if (!state.lockChecked) {
     const savedLock = await db.settings.get('appLock');
@@ -532,6 +559,7 @@ async function render() {
 
   updateTransactionList();
   renderImportReview();
+  renderUnrecognized();
   updateInstallButton();
 }
 
@@ -641,6 +669,23 @@ function openTransaction(transaction = null, type = 'out') {
   renderTransactionDialog();
   document.querySelector('#transaction-dialog').showModal();
 }
+function openUnrecognized(index) {
+  const item = state.importUnrecognized[index];
+  if (!item) return;
+  state.transactionDraft = {
+    type: item.type,
+    date: item.date,
+    amt: item.amt,
+    fee: item.type === 'out' ? item.fee : 0,
+    party: '',
+    src: state.sources[0],
+    cat: '',
+    allocations: [],
+    receiptId: item.id,
+  };
+  renderTransactionDialog();
+  document.querySelector('#transaction-dialog').showModal();
+}
 
 function openSourceDialog() {
   const dialog = document.querySelector('#source-dialog');
@@ -665,16 +710,22 @@ async function lockApp() {
 async function parseImportText() {
   const text = document.querySelector('#sms-text')?.value || state.importText;
   state.importText = text;
-  const parsed = parseMessages(text);
+   const { parsed, unrecognized } = parseMessagesDetailed(text);
+  const existingIds = new Set(await db.tx.toCollection().primaryKeys());
+  state.importUnrecognized = unrecognized.filter((item) => !existingIds.has(item.id));
   if (!parsed.length) {
     state.importDrafts = [];
     state.importSkipped = 0;
     renderImportReview();
-    showToast('No supported M-PESA confirmations found. You can add a transaction manually.', true);
+    renderUnrecognized();
+    showToast(
+      state.importUnrecognized.length
+        ? 'These messages need to be added by hand.'
+        : 'No supported M-PESA confirmations found. You can add a transaction manually.',
+      !state.importUnrecognized.length,
+    );
     return;
   }
-
-  const existingIds = new Set(await db.tx.toCollection().primaryKeys());
   const defaultSource = document.querySelector('#default-import-source')?.value || state.sources[0];
   state.importSkipped = 0;
   state.importDrafts = [];
@@ -700,6 +751,7 @@ async function parseImportText() {
 
   state.importSkipped += parsed.length - state.importSkipped - state.importDrafts.length;
   renderImportReview();
+  renderUnrecognized();
   if (!state.importDrafts.length) {
     showToast('Those messages are already recorded or could not be recognized.');
   }
@@ -848,6 +900,11 @@ app.addEventListener('click', async (event) => {
     } catch (deleteError) {
       showToast(`Could not delete transaction: ${deleteError.message}`, true);
     }
+  }
+  else if (action === 'add-unrecognized') openUnrecognized(Number(button.dataset.index));
+  else if (action === 'dismiss-unrecognized') {
+    state.importUnrecognized.splice(Number(button.dataset.index), 1);
+    renderUnrecognized();
   }
   else if (action === 'new-expense') openTransaction(null, 'out');
   else if (action === 'new-income') openTransaction(null, 'in');
@@ -1091,7 +1148,7 @@ app.addEventListener('submit', async (event) => {
       error.textContent = '';
       const transaction = {
         ...draft,
-        id: draft.id || `manual-${crypto.randomUUID()}`,
+        id: draft.id || draft.receiptId || `manual-${crypto.randomUUID()}`,
         date: new Date(draft.dateField).getTime(),
         party: draft.party.trim(),
         src: draft.type === 'in'
@@ -1099,9 +1156,11 @@ app.addEventListener('submit', async (event) => {
           : draft.allocations.length === 1 ? draft.allocations[0].source : undefined,
         allocations: draft.type === 'out' ? draft.allocations : [],
       };
-      delete transaction.dateField;
+         delete transaction.dateField;
+      delete transaction.receiptId;
       try {
         await saveTransaction(transaction);
+        state.importUnrecognized = state.importUnrecognized.filter((item) => item.id !== transaction.id);
         document.querySelector('#transaction-dialog').close();
         state.transactionDraft = null;
         await render();
