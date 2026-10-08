@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMessages } from './Parser.js';
+import { parseMessages, parseMessagesDetailed } from './Parser.js';
 
 // FAKE messages. When testing real formats, remove names and phone numbers first.
 const sample = `
@@ -17,4 +17,17 @@ describe('parseMessages', () => {
   it('paid to till', () => expect(r[2]).toMatchObject({ type: 'out', amt: 200, party: 'Naivas Supermarket' }));
   it('airtime', () => expect(r[3]).toMatchObject({ type: 'out', amt: 50, cat: 'Airtime & data' }));
   it('reads dates as d/m/yy', () => expect(new Date(r[0].date).getMonth()).toBe(9));
+});
+
+describe('parseMessagesDetailed', () => {
+  const fuliza = 'UA55FGH666 Confirmed. Fuliza M-PESA amount is Ksh 300.00 on 5/10/26 at 7:10 PM. Interest charged Ksh 3.00.';
+  const text = `${sample}\n${fuliza}`;
+  const r = parseMessagesDetailed(text);
+
+  it('still parses the recognized messages', () => expect(r.parsed).toHaveLength(4));
+  it('hands back messages it cannot read instead of dropping them', () => {
+    expect(r.unrecognized).toHaveLength(1);
+    expect(r.unrecognized[0]).toMatchObject({ id: 'UA55FGH666', amt: 300, type: 'out' });
+  });
+  it('parseMessages keeps its old behaviour', () => expect(parseMessages(text)).toHaveLength(4));
 });

@@ -17,9 +17,10 @@ function parseDate(p) {
   return new Date(y, +d[2] - 1, +d[1], h, +d[5]).getTime();
 }
 
-export function parseMessages(text) {
+export function parseMessagesDetailed(text) {
   const chunks = text.split(/(?=\b[A-Z0-9]{10}\s+Confirmed)/);
   const out = [];
+  const unrecognized = [];
   for (const p of chunks) {
     if (!/Confirmed/i.test(p)) continue;
     const amt = p.match(/Ksh\s?([\d,]+\.?\d*)/i);
@@ -27,7 +28,8 @@ export function parseMessages(text) {
     const id = (p.match(/^\s*([A-Z0-9]{10})\s+Confirmed/) || [])[1];
     if (!id) continue; // no receipt code = can't dedupe safely
     const fee = p.match(/Transaction cost, Ksh\s?([\d,.]+)/i);
-    const base = { id, amt: num(amt[1]), fee: fee ? num(fee[1]) : 0, date: parseDate(p) };
+       const base = { id, amt: num(amt[1]), fee: fee ? num(fee[1]) : 0, date: parseDate(p) };
+    const before = out.length;
 
     let m;
     if ((m = p.match(new RegExp('(?:received Ksh\\s?[\\d,.]+ from|Ksh\\s?[\\d,.]+ received from) (.+?)' + END, 'i'))))
@@ -40,7 +42,21 @@ export function parseMessages(text) {
       out.push({ ...base, type: 'out', party: 'Airtime', cat: 'Airtime & data' });
     else if ((m = p.match(/withdraw\w* from (.+?) on/i)))
       out.push({ ...base, type: 'out', party: title(m[1]), cat: 'Cash out' });
-    // anything else (Fuliza, Mshwari, reversals) is skipped for now
+    // anything else (Fuliza, Mshwari, reversals) is handed back so the user can add it by hand
+    if (out.length === before) {
+      unrecognized.push({
+        id,
+        text: p.trim(),
+        amt: base.amt,
+        fee: base.fee,
+        date: base.date,
+        type: /received|reversal|reversed|deposit/i.test(p) ? 'in' : 'out',
+      });
+    }
   }
-  return out;
+  return { parsed: out, unrecognized };
+}
+
+export function parseMessages(text) {
+  return parseMessagesDetailed(text).parsed;
 }
