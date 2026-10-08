@@ -50,6 +50,10 @@ Open the deployed app in a supported browser and select **Install app**. If the 
 
 The install option requires the app to be served from HTTPS, or from localhost during development. PWA installation availability depends on the browser and device.
 
+## Publishing updates
+
+The Vercel project is connected to this GitHub repository. Push changes to the configured production branch (typically `main`) to trigger a Vercel production deployment. Once deployed, the PWA service worker automatically installs the updated app on supported browsers. The footer displays the package version together with the short Git commit SHA (for example, `v0.0.0+1a2b3c4`) so you can identify which build is running. Preview deployments for other branches do not replace the production deployment.
+
 ## Importing M-PESA messages
 
 Copy one or more M-PESA confirmation messages and paste them into **Import SMS**. Check each detected transaction before saving it:

@@ -1,7 +1,14 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const packageVersion = process.env.npm_package_version || '0.0.0';
+const commitSha = process.env.VERCEL_GIT_COMMIT_SHA;
+const appVersion = `${packageVersion}${commitSha ? `+${commitSha.slice(0, 7)}` : ''}`;
+
 export default defineConfig({
+  define: {
+    'import.meta.env.APP_VERSION': JSON.stringify(appVersion),
+  },
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
