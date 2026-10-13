@@ -76,4 +76,4 @@ npm test
 
 ## Build by
 
-Brian.
+Brian -- founder kreative studio
