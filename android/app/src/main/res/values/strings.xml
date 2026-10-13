@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pesa Trail</string>
+    <string name="title_activity_main">Pesa Trail</string>
+    <string name="package_name">com.pesatrail.app</string>
+    <string name="custom_url_scheme">com.pesatrail.app</string>
+</resources>

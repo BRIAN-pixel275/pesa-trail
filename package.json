@@ -10,11 +10,14 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "vite": "^8.3.0",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.0.3"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "dexie": "^4.4.6"
   }
 }
