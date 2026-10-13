@@ -1,3 +1,5 @@
+import { SMSInboxReader } from 'capacitor-sms-inbox';
+import { Capacitor } from '@capacitor/core';
 import './style.css';
 import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, restoreRules, saveSources, saveTransaction, summary } from './Db.js';
 import { parseMessagesDetailed } from './Parser.js';
@@ -296,6 +298,7 @@ function importView() {
       <article class="import-card">
         <div class="step-number">01</div>
         <h2>Paste messages</h2>
+        ${Capacitor.isNativePlatform() ? '<button class="button button-primary full-button" type="button" data-action="read-sms">Read from my phone (last 14 days)</button>' : ''}
         <p>Copy M-PESA confirmation messages and paste them below. You can paste more than one at a time.</p>
         <label class="field-label" for="sms-text">M-PESA message text</label>
         <textarea id="sms-text" rows="9" placeholder="Example: QWE1234567 Confirmed. Ksh500.00 sent to ...">${escapeHtml(state.importText)}</textarea>
@@ -695,6 +698,22 @@ async function lockApp() {
   await render();
 }
 
+async function readSmsIntoImport(days = 14) {
+  let perm = await SMSInboxReader.checkPermissions();
+  if (perm.sms !== 'granted') perm = await SMSInboxReader.requestPermissions();
+  if (perm.sms !== 'granted') {
+    showToast('SMS permission is needed to read M-PESA messages.', true);
+    return;
+  }
+  const { smsList } = await SMSInboxReader.getSMSList({
+    filter: { address: 'MPESA', minDate: Date.now() - days * 86400000, maxCount: 1000 },
+  });
+  state.importText = smsList.map((sms) => sms.body).join('\n');
+  const box = document.querySelector('#sms-text');
+  if (box) box.value = state.importText;
+  await parseImportText();
+}
+
 async function parseImportText() {
   const text = document.querySelector('#sms-text')?.value || state.importText;
   state.importText = text;
@@ -923,6 +942,13 @@ app.addEventListener('click', async (event) => {
     }
   }
   else if (action === 'close-dialog') button.closest('dialog').close();
+  else if (action === 'read-sms') {
+  try {
+    await readSmsIntoImport(14);
+  } catch (error) {
+    showToast(`Could not read SMS: ${error.message}`, true);
+  }
+}
   else if (action === 'parse-messages') {
     try {
       await parseImportText();
@@ -1213,3 +1239,4 @@ document.addEventListener('visibilitychange', () => {
 render().catch((error) => {
   app.innerHTML = `<main class="startup-error"><h1>Could not open Pesa Trail</h1><p>${escapeHtml(error.message)}</p><p>Your saved data has not been changed.</p></main>`;
 });
+
