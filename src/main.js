@@ -1,4 +1,5 @@
 import { SMSInboxReader } from 'capacitor-sms-inbox';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 import './style.css';
 import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, restoreRules, saveSources, saveTransaction, summary } from './Db.js';
@@ -22,7 +23,7 @@ const state = {
   importSkipped: 0,
   transactionDraft: null,
   lockCredential: null,
-   lockChecked: false,
+  lockChecked: false,
   failedUnlocks: 0,
   lockedUntil: 0,
   importUnrecognized: [],
@@ -316,7 +317,7 @@ function importView() {
         <ul><li>Already-imported messages are skipped.</li><li>Your source and category choices can be remembered for the same person or business.</li><li>Messages this version does not recognize can still be entered manually.</li></ul>
       </aside>
     </section>
-        <section id="import-review" class="content-section import-review" hidden></section>
+    <section id="import-review" class="content-section import-review" hidden></section>
     <section id="import-unrecognized" class="content-section import-review" hidden></section>`;
 }
 
@@ -417,6 +418,7 @@ function renderImportReview() {
       }).join('')}
     </div>`;
 }
+
 function renderUnrecognized() {
   const container = document.querySelector('#import-unrecognized');
   if (!container) return;
@@ -443,6 +445,7 @@ function renderUnrecognized() {
         </article>`).join('')}
     </div>`;
 }
+
 async function render() {
   if (!state.lockChecked) {
     const savedLock = await db.settings.get('appLock');
@@ -476,7 +479,7 @@ async function render() {
     getSources(),
     db.tx.toArray(),
     summary(new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()),
-  summary(),
+    summary(),
   ]);
   state.sources = sources;
   state.transactions = transactions;
@@ -509,7 +512,7 @@ async function render() {
       <main>
         ${body}
       </main>
-      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays in this browser.</span><span class="app-version" title="App version">Version v${escapeHtml(import.meta.env.APP_VERSION)}</span><button class="text-button footer-lock-settings" type="button" data-action="manage-lock">App lock settings</button></footer>
+      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays on this device.</span><span class="app-version" title="App version">Version v${escapeHtml(import.meta.env.APP_VERSION)}</span>${Capacitor.isNativePlatform() ? '<button class="text-button" type="button" data-action="manage-reminder">Daily reminder</button>' : ''}<button class="text-button footer-lock-settings" type="button" data-action="manage-lock">App lock settings</button></footer>
     </div>
     <nav class="bottom-nav" aria-label="Main navigation">
       ${navigation.map(([view, label, icon]) => `<button type="button" data-view="${view}" class="${state.view === view ? 'active' : ''}" aria-current="${state.view === view ? 'page' : 'false'}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('')}
@@ -543,6 +546,21 @@ async function render() {
         <label class="field-label" for="new-source">Source name</label><input id="new-source" name="source" maxlength="40" placeholder="e.g. Student upkeep" required>
         <p class="form-error" role="alert"></p>
         <button class="button button-primary full-button" type="submit">Add source</button>
+      </form>
+    </dialog>
+    <dialog id="reminder-dialog" class="app-dialog">
+      <form id="reminder-form">
+        <button class="dialog-close" type="button" data-action="close-dialog" aria-label="Close">×</button>
+        <p class="eyebrow">Build the habit</p>
+        <h2>Daily reminder</h2>
+        <p class="dialog-copy">Get a notification every day to sync and label that day's M-PESA transactions.</p>
+        <label class="field-label" for="reminder-time">Remind me at</label>
+        <input id="reminder-time" name="time" type="time" value="20:00" required>
+        <p class="form-error" role="alert"></p>
+        <div class="dialog-actions lock-actions">
+          <button class="button button-quiet" type="button" data-action="reminder-off">Turn off</button>
+          <button class="button button-primary" type="submit">Save reminder</button>
+        </div>
       </form>
     </dialog>
     <input id="backup-file" type="file" accept="application/json,.json" hidden>
@@ -591,8 +609,8 @@ function renderTransactionDialog() {
         }
       </div>
       <p class="form-error" role="alert"></p>
-           <div class="dialog-actions">${draft.id ? '<button class="button button-quiet delete-button" type="button" data-action="delete-transaction">Delete</button>' : ''}<button class="button button-quiet" type="button" data-action="close-dialog">Cancel</button><button class="button button-primary" type="submit">Save transaction</button>
-           </div>
+      <div class="dialog-actions">${draft.id ? '<button class="button button-quiet delete-button" type="button" data-action="delete-transaction">Delete</button>' : ''}<button class="button button-quiet" type="button" data-action="close-dialog">Cancel</button><button class="button button-primary" type="submit">Save transaction</button>
+      </div>
       <p class="dialog-privacy">This entry is saved only on this device.</p>
     </form>`;
 }
@@ -660,6 +678,7 @@ function openTransaction(transaction = null, type = 'out') {
   renderTransactionDialog();
   document.querySelector('#transaction-dialog').showModal();
 }
+
 function openUnrecognized(index) {
   const item = state.importUnrecognized[index];
   if (!item) return;
@@ -698,6 +717,37 @@ async function lockApp() {
   await render();
 }
 
+const REMINDER_ID = 1;
+
+async function getReminder() {
+  return (await db.settings.get('reminder'))?.value || { enabled: false, hour: 20, minute: 0 };
+}
+
+async function applyReminder(reminder) {
+  await LocalNotifications.cancel({ notifications: [{ id: REMINDER_ID }] });
+  if (!reminder.enabled) return;
+  let perm = await LocalNotifications.checkPermissions();
+  if (perm.display !== 'granted') perm = await LocalNotifications.requestPermissions();
+  if (perm.display !== 'granted') throw new Error('Notification permission was not granted.');
+  await LocalNotifications.schedule({
+    notifications: [{
+      id: REMINDER_ID,
+      title: 'Pesa Trail',
+      body: "Sync today's M-PESA transactions and label them while you remember.",
+      schedule: { on: { hour: reminder.hour, minute: reminder.minute }, allowWhileIdle: true },
+    }],
+  });
+}
+
+async function openReminderDialog() {
+  const reminder = await getReminder();
+  const dialog = document.querySelector('#reminder-dialog');
+  dialog.querySelector('.form-error').textContent = '';
+  dialog.querySelector('[name="time"]').value =
+    `${String(reminder.hour).padStart(2, '0')}:${String(reminder.minute).padStart(2, '0')}`;
+  dialog.showModal();
+}
+
 async function readSmsIntoImport() {
   let perm = await SMSInboxReader.checkPermissions();
   if (perm.sms !== 'granted') perm = await SMSInboxReader.requestPermissions();
@@ -723,7 +773,7 @@ async function readSmsIntoImport() {
 async function parseImportText() {
   const text = document.querySelector('#sms-text')?.value || state.importText;
   state.importText = text;
-   const { parsed, unrecognized } = parseMessagesDetailed(text);
+  const { parsed, unrecognized } = parseMessagesDetailed(text);
   const existingIds = new Set(await db.tx.toCollection().primaryKeys());
   state.importUnrecognized = unrecognized.filter((item) => !existingIds.has(item.id));
   if (!parsed.length) {
@@ -847,7 +897,7 @@ async function restoreBackup(file) {
     throw new Error('This does not look like a valid Pesa Trail backup.');
   }
 
-    await db.tx.bulkPut(payload.transactions);
+  await db.tx.bulkPut(payload.transactions);
   await restoreRules(payload.rules);
   if (Array.isArray(payload.sources) && payload.sources.length) {
     await saveSources(payload.sources);
@@ -870,6 +920,17 @@ app.addEventListener('click', async (event) => {
   const action = button.dataset.action;
 
   if (action === 'manage-lock') openLockDialog();
+  else if (action === 'manage-reminder') await openReminderDialog();
+  else if (action === 'reminder-off') {
+    try {
+      await db.settings.put({ key: 'reminder', value: { enabled: false, hour: 20, minute: 0 } });
+      await applyReminder({ enabled: false });
+      document.querySelector('#reminder-dialog').close();
+      showToast('Daily reminder turned off.');
+    } catch (error) {
+      showToast(`Could not turn off the reminder: ${error.message}`, true);
+    }
+  }
   else if (action === 'lock-now') await lockApp();
   else if (action === 'remove-lock') {
     const form = document.querySelector('#lock-form');
@@ -949,12 +1010,12 @@ app.addEventListener('click', async (event) => {
   }
   else if (action === 'close-dialog') button.closest('dialog').close();
   else if (action === 'read-sms') {
-  try {
-    await readSmsIntoImport();
-  } catch (error) {
-    showToast(`Could not read SMS: ${error.message}`, true);
+    try {
+      await readSmsIntoImport();
+    } catch (error) {
+      showToast(`Could not read SMS: ${error.message}`, true);
+    }
   }
-}
   else if (action === 'parse-messages') {
     try {
       await parseImportText();
@@ -1104,7 +1165,7 @@ app.addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = event.target;
     const error = form.querySelector('.form-error');
-       const pin = new FormData(form).get('pin');
+    const pin = new FormData(form).get('pin');
     const waitMs = state.lockedUntil - Date.now();
     if (waitMs > 0) {
       error.textContent = `Too many attempts. Try again in ${Math.ceil(waitMs / 1000)} seconds.`;
@@ -1183,7 +1244,7 @@ app.addEventListener('submit', async (event) => {
           : draft.allocations.length === 1 ? draft.allocations[0].source : undefined,
         allocations: draft.type === 'out' ? draft.allocations : [],
       };
-         delete transaction.dateField;
+      delete transaction.dateField;
       delete transaction.receiptId;
       try {
         await saveTransaction(transaction);
@@ -1195,6 +1256,21 @@ app.addEventListener('submit', async (event) => {
       } catch (saveError) {
         error.textContent = `Could not save transaction: ${saveError.message}`;
       }
+    }
+  } else if (event.target.id === 'reminder-form') {
+    event.preventDefault();
+    const form = event.target;
+    const error = form.querySelector('.form-error');
+    const time = String(new FormData(form).get('time') || '20:00');
+    const [hour, minute] = time.split(':').map(Number);
+    const reminder = { enabled: true, hour, minute };
+    try {
+      await applyReminder(reminder);
+      await db.settings.put({ key: 'reminder', value: reminder });
+      document.querySelector('#reminder-dialog').close();
+      showToast(`Daily reminder set for ${time}.`);
+    } catch (reminderError) {
+      error.textContent = reminderError.message;
     }
   } else if (event.target.id === 'source-form') {
     event.preventDefault();
@@ -1231,6 +1307,7 @@ app.addEventListener('change', async (event) => {
     event.target.value = '';
   }
 });
+
 const AUTO_LOCK_MS = 60_000;
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
@@ -1242,7 +1319,7 @@ document.addEventListener('visibilitychange', () => {
   hiddenAt = 0;
   if (state.lockCredential && !state.locked && awayFor >= AUTO_LOCK_MS) lockApp();
 });
+
 render().catch((error) => {
   app.innerHTML = `<main class="startup-error"><h1>Could not open Pesa Trail</h1><p>${escapeHtml(error.message)}</p><p>Your saved data has not been changed.</p></main>`;
 });
-
