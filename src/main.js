@@ -298,7 +298,7 @@ function importView() {
       <article class="import-card">
         <div class="step-number">01</div>
         <h2>Paste messages</h2>
-        ${Capacitor.isNativePlatform() ? '<button class="button button-primary full-button" type="button" data-action="read-sms">Read from my phone (last 14 days)</button>' : ''}
+        ${Capacitor.isNativePlatform() ? `<button class="button button-primary full-button" type="button" data-action="read-sms">Sync today's transactions</button>` : ''}
         <p>Copy M-PESA confirmation messages and paste them below. You can paste more than one at a time.</p>
         <label class="field-label" for="sms-text">M-PESA message text</label>
         <textarea id="sms-text" rows="9" placeholder="Example: QWE1234567 Confirmed. Ksh500.00 sent to ...">${escapeHtml(state.importText)}</textarea>
@@ -698,16 +698,22 @@ async function lockApp() {
   await render();
 }
 
-async function readSmsIntoImport(days = 14) {
+async function readSmsIntoImport() {
   let perm = await SMSInboxReader.checkPermissions();
   if (perm.sms !== 'granted') perm = await SMSInboxReader.requestPermissions();
   if (perm.sms !== 'granted') {
     showToast('SMS permission is needed to read M-PESA messages.', true);
     return;
   }
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   const { smsList } = await SMSInboxReader.getSMSList({
-    filter: { address: 'MPESA', minDate: Date.now() - days * 86400000, maxCount: 1000 },
+    filter: { address: 'MPESA', minDate: startOfToday.getTime(), maxCount: 200 },
   });
+  if (!smsList.length) {
+    showToast('No M-PESA messages yet today.');
+    return;
+  }
   state.importText = smsList.map((sms) => sms.body).join('\n');
   const box = document.querySelector('#sms-text');
   if (box) box.value = state.importText;
@@ -944,7 +950,7 @@ app.addEventListener('click', async (event) => {
   else if (action === 'close-dialog') button.closest('dialog').close();
   else if (action === 'read-sms') {
   try {
-    await readSmsIntoImport(14);
+    await readSmsIntoImport();
   } catch (error) {
     showToast(`Could not read SMS: ${error.message}`, true);
   }
