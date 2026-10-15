@@ -1,6 +1,8 @@
 import { SMSInboxReader } from 'capacitor-sms-inbox';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import './style.css';
 import { CAT, SRC, db, deleteTransaction, getSources, importParsed, needsLabel, restoreDeleted, restoreRules, saveSources, saveTransaction, summary } from './Db.js';
 import { parseMessagesDetailed } from './Parser.js';
@@ -52,6 +54,18 @@ const escapeHtml = (value = '') =>
     '"': '&quot;',
     "'": '&#39;',
   })[character]);
+
+const svg = (paths) => `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+
+const icons = {
+  settings: svg('<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>'),
+  backup: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>'),
+  restore: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>'),
+  csv: svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/>'),
+  bell: svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
+  lock: svg('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+  chevron: svg('<path d="m9 18 6-6-6-6"/>'),
+};
 
 const money = (value) =>
   new Intl.NumberFormat('en-KE', {
@@ -321,6 +335,40 @@ function importView() {
     <section id="import-unrecognized" class="content-section import-review" hidden></section>`;
 }
 
+function settingsRow({ action, icon, title, detail }) {
+  return `
+    <button class="settings-row" type="button" data-action="${action}">
+      <span class="settings-icon">${icons[icon]}</span>
+      <span class="settings-copy"><strong>${title}</strong><small>${detail}</small></span>
+      <span class="settings-chevron">${icons.chevron}</span>
+    </button>`;
+}
+
+function settingsView() {
+  return `
+    <section class="page-heading">
+      <p class="eyebrow">Your app, your rules</p>
+      <h1>Settings</h1>
+      <p>Back up your data, export it, and manage privacy and reminders.</p>
+    </section>
+    <section class="settings-group">
+      <h2 class="settings-title">Backup &amp; export</h2>
+      <div class="settings-list">
+        ${settingsRow({ action: 'export-backup', icon: 'backup', title: 'JSON backup', detail: 'Save a full copy of your data to restore later.' })}
+        ${settingsRow({ action: 'restore-backup', icon: 'restore', title: 'Restore backup', detail: 'Load a JSON backup file back into the app.' })}
+        ${settingsRow({ action: 'export-csv', icon: 'csv', title: 'Export CSV', detail: 'Download a spreadsheet for Excel or Google Sheets.' })}
+      </div>
+    </section>
+    <section class="settings-group">
+      <h2 class="settings-title">Privacy &amp; reminders</h2>
+      <div class="settings-list">
+        ${settingsRow({ action: 'manage-lock', icon: 'lock', title: state.lockCredential ? 'App lock settings' : 'Set an app PIN', detail: 'Protect the app screen with a six-digit PIN.' })}
+        ${Capacitor.isNativePlatform() ? settingsRow({ action: 'manage-reminder', icon: 'bell', title: 'Daily reminder', detail: "Get a nightly nudge to sync and label today's transactions." }) : ''}
+      </div>
+    </section>
+    <p class="helper-text settings-note">Your data stays on this device. Take a backup regularly.</p>`;
+}
+
 function transactionListMarkup() {
   const term = state.search.trim().toLowerCase();
   const filtered = [...state.transactions]
@@ -494,7 +542,9 @@ async function render() {
     ? dashboardView(state.period === 'month' ? monthSummary : allSummary)
     : state.view === 'activity'
       ? activityView()
-      : importView();
+      : state.view === 'settings'
+        ? settingsView()
+        : importView();
 
   app.innerHTML = `
     <div class="app-shell">
@@ -504,15 +554,13 @@ async function render() {
           <span class="local-indicator"><span></span> Saved on this device</span>
           <button class="button button-quiet lock-settings" type="button" data-action="${state.lockCredential ? 'lock-now' : 'manage-lock'}" aria-label="${state.lockCredential ? 'Lock Pesa Trail' : 'Set app PIN'}" title="${state.lockCredential ? 'Lock Pesa Trail' : 'Set app PIN'}"><span aria-hidden="true">${state.lockCredential ? '▣' : '⚙'}</span><span class="lock-settings-label">${state.lockCredential ? 'Lock' : 'Set PIN'}</span></button>
           <button class="button button-quiet install-app-button" type="button" data-action="open-install" ${state.isInstalled ? 'hidden' : ''} aria-label="Install Pesa Trail"><span class="install-button-icon" aria-hidden="true">↓</span><span class="install-label">Install app</span></button>
-          <button class="button button-quiet export-csv-button" type="button" data-action="export-csv"><span aria-hidden="true">⇩</span><span class="export-csv-label">Export CSV</span></button>
-          <button class="button button-quiet backup-button" type="button" data-action="export-backup"><span aria-hidden="true">▣</span><span class="backup-label">JSON backup</span></button>
-          <button class="icon-button backup-restore" type="button" data-action="restore-backup" aria-label="Restore a backup" title="Restore backup">↥</button>
+          <button class="icon-button settings-button ${state.view === 'settings' ? 'settings-active' : ''}" type="button" data-view="settings" aria-label="Settings" title="Settings">${icons.settings}</button>
         </div>
       </header>
       <main>
         ${body}
       </main>
-      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays on this device.</span><span class="app-version" title="App version">Version v${escapeHtml(import.meta.env.APP_VERSION)}</span>${Capacitor.isNativePlatform() ? '<button class="text-button" type="button" data-action="manage-reminder">Daily reminder</button>' : ''}<button class="text-button footer-lock-settings" type="button" data-action="manage-lock">App lock settings</button></footer>
+      <footer class="app-footer"><span>Made for your money story.</span><span>Your transaction data stays on this device.</span><span class="app-version" title="App version">Version v${escapeHtml(import.meta.env.APP_VERSION)}</span></footer>
     </div>
     <nav class="bottom-nav" aria-label="Main navigation">
       ${navigation.map(([view, label, icon]) => `<button type="button" data-view="${view}" class="${state.view === view ? 'active' : ''}" aria-current="${state.view === view ? 'page' : 'false'}"><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('')}
@@ -839,7 +887,22 @@ async function saveImport() {
   showToast(`${result.added} transaction${result.added === 1 ? '' : 's'} saved${result.skipped ? ` · ${result.skipped} duplicate${result.skipped === 1 ? '' : 's'} skipped` : ''}.`);
 }
 
-function downloadFile(blob, filename) {
+async function downloadFile(blob, filename) {
+  if (Capacitor.isNativePlatform()) {
+    const written = await Filesystem.writeFile({
+      path: filename,
+      data: await blob.text(),
+      directory: Directory.Cache,
+      encoding: Encoding.UTF8,
+    });
+    try {
+      await Share.share({ title: filename, files: [written.uri], dialogTitle: 'Save or send your file' });
+      return true;
+    } catch (error) {
+      if (/cancel/i.test(error?.message || '')) return false;
+      throw error;
+    }
+  }
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -849,6 +912,7 @@ function downloadFile(blob, filename) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 
 async function exportCsv() {
@@ -860,8 +924,8 @@ async function exportCsv() {
   const blob = new Blob([transactionsToCsv(transactions)], {
     type: 'text/csv;charset=utf-8',
   });
-  downloadFile(blob, `pesa-trail-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
-  showToast(`${transactions.length} transaction${transactions.length === 1 ? '' : 's'} exported as CSV.`);
+    const saved = await downloadFile(blob, `pesa-trail-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
+  if (saved) showToast(`${transactions.length} transaction${transactions.length === 1 ? '' : 's'} exported as CSV.`);
 }
 
 async function exportBackup() {
@@ -873,8 +937,8 @@ async function exportBackup() {
     rules: await db.rules.toArray(),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  downloadFile(blob, `pesa-trail-backup-${new Date().toISOString().slice(0, 10)}.json`);
-  showToast('Your JSON backup was downloaded.');
+    const saved = await downloadFile(blob, `pesa-trail-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  if (saved) showToast('Backup ready. Keep the file somewhere safe.');
 }
 
 async function restoreBackup(file) {
