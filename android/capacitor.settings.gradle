@@ -11,5 +11,8 @@ project(':capacitor-local-notifications').projectDir = new File('../node_modules
 include ':capacitor-share'
 project(':capacitor-share').projectDir = new File('../node_modules/@capacitor/share/android')
 
+include ':capgo-capacitor-native-biometric'
+project(':capgo-capacitor-native-biometric').projectDir = new File('../node_modules/@capgo/capacitor-native-biometric/android')
+
 include ':capacitor-sms-inbox'
 project(':capacitor-sms-inbox').projectDir = new File('../node_modules/capacitor-sms-inbox/android')

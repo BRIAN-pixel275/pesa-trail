@@ -1,6 +1,7 @@
 import { SMSInboxReader } from 'capacitor-sms-inbox';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
+import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import './style.css';
@@ -30,6 +31,8 @@ const state = {
   lockedUntil: 0,
   importUnrecognized: [],
   locked: false,
+  biometricEnabled: false,
+  fingerprintPrompted: false,
   isInstalled: window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
 };
 
@@ -65,6 +68,7 @@ const icons = {
   bell: svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
   lock: svg('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
   chevron: svg('<path d="m9 18 6-6-6-6"/>'),
+  fingerprint: svg('<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>'),
 };
 
 const money = (value) =>
@@ -363,6 +367,7 @@ function settingsView() {
       <h2 class="settings-title">Privacy &amp; reminders</h2>
       <div class="settings-list">
         ${settingsRow({ action: 'manage-lock', icon: 'lock', title: state.lockCredential ? 'App lock settings' : 'Set an app PIN', detail: 'Protect the app screen with a six-digit PIN.' })}
+        ${Capacitor.isNativePlatform() && state.lockCredential ? settingsRow({ action: 'toggle-fingerprint', icon: 'fingerprint', title: 'Fingerprint unlock', detail: state.biometricEnabled ? 'On. Open the app with your fingerprint, with your PIN as backup.' : 'Off. Turn on to unlock with your fingerprint instead of typing the PIN.' }) : ''}
         ${Capacitor.isNativePlatform() ? settingsRow({ action: 'manage-reminder', icon: 'bell', title: 'Daily reminder', detail: "Get a nightly nudge to sync and label today's transactions." }) : ''}
       </div>
     </section>
@@ -498,6 +503,7 @@ async function render() {
   if (!state.lockChecked) {
     const savedLock = await db.settings.get('appLock');
     state.lockCredential = savedLock?.value || null;
+    state.biometricEnabled = Boolean((await db.settings.get('biometric'))?.value?.enabled);
     state.locked = Boolean(state.lockCredential);
     state.lockChecked = true;
   }
@@ -516,10 +522,15 @@ async function render() {
             <p id="unlock-error" class="form-error" role="alert"></p>
             <button class="button button-primary full-button" type="submit">Unlock Pesa Trail</button>
           </form>
+          ${state.biometricEnabled ? `<button class="button button-quiet full-button" type="button" data-action="use-fingerprint">${icons.fingerprint} Use fingerprint</button>` : ''}
           <p class="lock-note">This PIN protects the app screen on this device. It does not encrypt your saved data.</p>
         </div>
       </main>`;
     app.querySelector('#unlock-pin').focus();
+    if (state.biometricEnabled && !state.fingerprintPrompted) {
+      state.fingerprintPrompted = true;
+      tryFingerprintUnlock();
+    }
     return;
   }
 
@@ -759,9 +770,68 @@ function openLockDialog() {
   dialog.querySelector(state.lockCredential ? '#current-pin' : '#new-pin').focus();
 }
 
-async function lockApp() {
+async function biometricAvailable() {
+  if (!Capacitor.isNativePlatform()) return false;
+  try {
+    return (await NativeBiometric.isAvailable()).isAvailable;
+  } catch {
+    return false;
+  }
+}
+
+async function verifyFingerprint(reason = 'Unlock Pesa Trail') {
+  await NativeBiometric.verifyIdentity({
+    reason,
+    title: 'Pesa Trail',
+    subtitle: 'Confirm it is you',
+    negativeButtonText: 'Use PIN',
+  });
+}
+
+async function tryFingerprintUnlock() {
+  if (!state.biometricEnabled || !state.locked) return;
+  try {
+    await verifyFingerprint();
+    state.failedUnlocks = 0;
+    state.lockedUntil = 0;
+    state.locked = false;
+    await render();
+  } catch {
+    // Cancelled or not recognised: the PIN form stays on screen.
+  }
+}
+
+async function toggleFingerprint() {
+  if (!state.lockCredential) {
+    showToast('Set an app PIN first.', true);
+    return;
+  }
+  if (state.biometricEnabled) {
+    await db.settings.put({ key: 'biometric', value: { enabled: false } });
+    state.biometricEnabled = false;
+    await render();
+    showToast('Fingerprint unlock turned off.');
+    return;
+  }
+  if (!await biometricAvailable()) {
+    showToast('No fingerprint is set up on this phone. Add one in Android settings first.', true);
+    return;
+  }
+  try {
+    await verifyFingerprint('Confirm your fingerprint to turn this on');
+    await db.settings.put({ key: 'biometric', value: { enabled: true } });
+    state.biometricEnabled = true;
+    await render();
+    showToast('Fingerprint unlock turned on.');
+  } catch {
+    showToast('Fingerprint was not confirmed.', true);
+  }
+}
+
+async function lockApp({ prompt = false } = {}) {
   if (!state.lockCredential) return;
   state.locked = true;
+  state.fingerprintPrompted = !prompt;
   await render();
 }
 
@@ -924,7 +994,7 @@ async function exportCsv() {
   const blob = new Blob([transactionsToCsv(transactions)], {
     type: 'text/csv;charset=utf-8',
   });
-    const saved = await downloadFile(blob, `pesa-trail-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
+  const saved = await downloadFile(blob, `pesa-trail-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
   if (saved) showToast(`${transactions.length} transaction${transactions.length === 1 ? '' : 's'} exported as CSV.`);
 }
 
@@ -937,7 +1007,7 @@ async function exportBackup() {
     rules: await db.rules.toArray(),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const saved = await downloadFile(blob, `pesa-trail-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  const saved = await downloadFile(blob, `pesa-trail-backup-${new Date().toISOString().slice(0, 10)}.json`);
   if (saved) showToast('Backup ready. Keep the file somewhere safe.');
 }
 
@@ -985,6 +1055,8 @@ app.addEventListener('click', async (event) => {
 
   if (action === 'manage-lock') openLockDialog();
   else if (action === 'manage-reminder') await openReminderDialog();
+  else if (action === 'toggle-fingerprint') await toggleFingerprint();
+  else if (action === 'use-fingerprint') await tryFingerprintUnlock();
   else if (action === 'reminder-off') {
     try {
       await db.settings.put({ key: 'reminder', value: { enabled: false, hour: 20, minute: 0 } });
@@ -1006,6 +1078,8 @@ app.addEventListener('click', async (event) => {
         return;
       }
       await db.settings.delete('appLock');
+      await db.settings.delete('biometric');
+      state.biometricEnabled = false;
       state.lockCredential = null;
       document.querySelector('#lock-dialog').close();
       await render();
@@ -1381,7 +1455,7 @@ document.addEventListener('visibilitychange', () => {
   }
   const awayFor = hiddenAt ? Date.now() - hiddenAt : 0;
   hiddenAt = 0;
-  if (state.lockCredential && !state.locked && awayFor >= AUTO_LOCK_MS) lockApp();
+  if (state.lockCredential && !state.locked && awayFor >= AUTO_LOCK_MS) lockApp({ prompt: true });
 });
 
 render().catch((error) => {
