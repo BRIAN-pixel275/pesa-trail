@@ -31,3 +31,7 @@ describe('parseMessagesDetailed', () => {
   });
   it('parseMessages keeps its old behaviour', () => expect(parseMessages(text)).toHaveLength(4));
 });
+it('reads Airtel Money sends with a lowercase "confirmed"', () => {
+  const [t] = parseMessages('UJKPIAS9IX confirmed. Ksh20.00 sent to AIRTEL MONEY  for account 254787326993 on 20/10/26 at 11:20 PM New M-PESA balance is Ksh7.97. Transaction cost, Ksh0.00.');
+  expect(t).toMatchObject({ id: 'UJKPIAS9IX', type: 'out', amt: 20, fee: 0, party: 'Airtel Money 254787326993' });
+});

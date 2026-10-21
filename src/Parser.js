@@ -18,14 +18,14 @@ function parseDate(p) {
 }
 
 export function parseMessagesDetailed(text) {
-  const chunks = text.split(/(?=\b[A-Z0-9]{10}\s+Confirmed)/);
+  const chunks = text.split(/(?=\b[A-Z0-9]{10}\s+[Cc]onfirmed)/);
   const out = [];
   const unrecognized = [];
   for (const p of chunks) {
     if (!/Confirmed/i.test(p)) continue;
     const amt = p.match(/Ksh\s?([\d,]+\.?\d*)/i);
     if (!amt) continue;
-    const id = (p.match(/^\s*([A-Z0-9]{10})\s+Confirmed/) || [])[1];
+    const id = (p.match(/^\s*([A-Z0-9]{10})\s+[Cc]onfirmed/) || [])[1];
     if (!id) continue; // no receipt code = can't dedupe safely
     const fee = p.match(/Transaction cost, Ksh\s?([\d,.]+)/i);
        const base = { id, amt: num(amt[1]), fee: fee ? num(fee[1]) : 0, date: parseDate(p) };
@@ -34,6 +34,8 @@ export function parseMessagesDetailed(text) {
     let m;
     if ((m = p.match(new RegExp('(?:received Ksh\\s?[\\d,.]+ from|Ksh\\s?[\\d,.]+ received from) (.+?)' + END, 'i'))))
       out.push({ ...base, type: 'in', party: title(m[1]) });
+        else if ((m = p.match(/sent to AIRTEL MONEY\s+for account\s+(\+?\d+)/i)))
+      out.push({ ...base, type: 'out', party: `Airtel Money ${m[1]}` });
     else if ((m = p.match(new RegExp('sent to (.+?)' + END, 'i'))))
       out.push({ ...base, type: 'out', party: title(m[1]) });
     else if ((m = p.match(/paid to (.+?)\.?\s+on \d/i)))
